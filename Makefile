@@ -14,7 +14,7 @@ all: installdeps clean build-linux-amd64 build-linux-386 build-darwin-amd64 buil
 build: $(RELEASE_DIR)/resque_exporter_$(GOOS)_$(GOARCH)
 
 build-linux-amd64:
-	@$(MAKE) build GOOS=linux GOARCH=amd64
+	$(MAKE) build GOOS=linux GOARCH=amd64
 
 build-linux-386:
 	@$(MAKE) build GOOS=linux GOARCH=386

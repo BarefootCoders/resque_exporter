@@ -16,14 +16,12 @@ var (
 )
 
 type opt struct {
-	Help    bool   `cli:"h,help" usage:"display help"`
-	Version bool   `cli:"v,version" usage:"display version and revision"`
-	Port    int    `cli:"p,port" usage:"set port number" dft:"5555"`
-	Config  string `cli:"c,config" usage:"set path to config file"`
+	Help    bool `cli:"h,help" usage:"display help"`
+	Version bool `cli:"v,version" usage:"display version and revision"`
+	Port    int  `cli:"p,port" usage:"set port number" dft:"9102"`
 }
 
 func Run(args []string) {
-	var configPath string
 	var port int
 
 	cli.Run(&opt{}, func(ctx *cli.Context) error {
@@ -38,21 +36,12 @@ func Run(args []string) {
 			os.Exit(0)
 		}
 
-		if argv.Config == "" {
-			ctx.String(ctx.Usage())
-		}
-
-		configPath = argv.Config
 		port = argv.Port
 
 		return nil
 	})
 
-	if configPath == "" {
-		log.Fatal("Missing mandatory option parameter: --config")
-	}
-
-	config, err := loadConfig(configPath)
+	config, err := loadConfig()
 	if err != nil {
 		log.Fatal(err)
 	}

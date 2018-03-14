@@ -1,0 +1,15 @@
+version: '3'
+services:
+  redis:
+    image: redis
+  exporter:
+    build: .
+    links:
+      - redis
+    ports:
+      - "9102:9102"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_NAMESPACE: "resque"
+      GUARD_INTERVAL_MILLIS: "0"

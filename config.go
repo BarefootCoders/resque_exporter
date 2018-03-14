@@ -1,35 +1,48 @@
 package resqueExporter
 
 import (
-	"fmt"
-	"io/ioutil"
-
-	"gopkg.in/yaml.v2"
+	"os"
+	"strconv"
 )
 
 type Config struct {
-	GuardIntervalMillis int64        `yaml:"guard_interval_millis"`
-	ResqueNamespace     string       `yaml:"resque_namespace"`
-	Redis               *RedisConfig `yaml:"redis"`
+	GuardIntervalMillis int64
+	ResqueNamespace     string
+	Redis               *RedisConfig
 }
 
 type RedisConfig struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	Password string `yaml:"password"`
-	DB       int64  `yaml:"db"`
+	Host     string
+	Port     int
+	Password string
+	DB       int64
 }
 
-func loadConfig(configPath string) (*Config, error) {
-	data, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to load config; path:<%s>, err:<%s>", configPath, err)
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
 	}
+	return fallback
+}
 
-	var config *Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("Failed to parse yaml; err:<%s>", err)
+func loadConfig() (*Config, error) {
+	guardIntervalMillisInt, _ := strconv.Atoi(getEnv("GUARD_INTERVAL_MILLIS", "0"))
+	guardIntervalMillis := int64(guardIntervalMillisInt)
+	resqueNamespace := getEnv("RESQUE_NAMESPACE", "resque")
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPort, _ := strconv.Atoi(getEnv("REDIS_PORT", "6379"))
+	redisPassword := ""
+	redisDB := int64(0)
+
+	config := &Config{
+		guardIntervalMillis,
+		resqueNamespace,
+		&RedisConfig{
+			redisHost,
+			redisPort,
+			redisPassword,
+			redisDB,
+		},
 	}
-
 	return config, nil
 }

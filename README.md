@@ -11,14 +11,13 @@ Options:
 
   -h, --help            display help
   -v, --version         display version and revision
-  -p, --port[=5555]     set port number
-  -c, --config          set path to config file
+  -p, --port[=9102]     set port number
 ```
 
 e.g.
 
 ```
-$ ./resque_exporter --config /path/to/config.yml
+$ REDIS_HOST=localhost REDIS_PORT=6379 RESQUE_NAMESPACE=resque GUARD_INTERVAL_MILLIS=0 ./resque_exporter
 ```
 
 Description
@@ -45,8 +44,15 @@ Paths that supported by this exporter
 Configuration
 --
 
-You may write configuration file and pass that through CLI option.  
-Please refer to [sample_config.yml](./sample_config.yml).
+Configuration is managed through the following environment variables:
+
+| Variable              | Default               |
+| --------------------- | --------------------- |
+| REDIS_HOST            | **Required**          |
+| REDIS_PORT            | 6379                  |
+| RESQUE_NAMESPACE      | resque                |
+| GUARD_INTERVAL_MILLIS | 0                     |
+
 
 Sample Output
 --
@@ -96,19 +102,14 @@ Any paths that except for `/metrics` returns response for health check. It retur
 Note
 --
 
-This exporter also supports resque compatible job-queue engine (e.g. [jesque](https://github.com/gresrun/jesque)).
-
-[For developers] How to build to release
---
-
-Execute `VERSION=${version} make`. Built binaries will be on `bin` directory.
+This exporter also supports resque compatible job-queue engines (e.g. [jesque](https://github.com/gresrun/jesque)).
 
 License
 --
 
 ```
 The MIT License (MIT)
-Copyright © 2016 moznion, http://moznion.net/ <moznion@gmail.com>
+Copyright © 2018 Barefoot Coders, http://www.barefootcoders.com/ <jason@barefootcoders.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the “Software”), to deal
