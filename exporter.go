@@ -1,7 +1,9 @@
 package resqueExporter
 
 import (
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -13,17 +15,45 @@ import (
 const namespace = "resque"
 
 type exporter struct {
-	config         *Config
-	mut            sync.Mutex
-	scrapeFailures prometheus.Counter
-	processed      prometheus.Gauge
-	failedQueue    prometheus.Gauge
-	failedTotal    prometheus.Gauge
-	queueStatus    *prometheus.GaugeVec
-	totalWorkers   prometheus.Gauge
-	activeWorkers  prometheus.Gauge
-	idleWorkers    prometheus.Gauge
-	timer          *time.Timer
+	config           *Config
+	mut              sync.Mutex
+	scrapeFailures   prometheus.Counter
+	processed        prometheus.Gauge
+	failedQueue      prometheus.Gauge
+	failedTotal      prometheus.Gauge
+	queueStatus      *prometheus.GaugeVec
+	totalWorkers     prometheus.Gauge
+	activeWorkers    prometheus.Gauge
+	idleWorkers      prometheus.Gauge
+	dirtyExits       *prometheus.GaugeVec
+	sigkilledWorkers *prometheus.GaugeVec
+	timer            *time.Timer
+}
+
+type Payload struct {
+	Class string        `json:"class"`
+	Args  []interface{} `json:"args"`
+}
+
+type process struct {
+	Hostname string
+	Pid      int
+	ID       string
+	Queues   []string
+}
+
+type worker struct {
+	process
+}
+
+type failure struct {
+	FailedAt  time.Time `json:"failed_at"`
+	Payload   Payload   `json:"payload"`
+	Exception string    `json:"exception"`
+	Error     string    `json:"error"`
+	Backtrace []string  `json:"backtrace"`
+	Worker    *worker   `json:"worker"`
+	Queue     string    `json:"queue"`
 }
 
 func newExporter(config *Config) (*exporter, error) {
@@ -72,6 +102,22 @@ func newExporter(config *Config) (*exporter, error) {
 			Name:      "idle_workers",
 			Help:      "Number of idle workers",
 		}),
+		dirtyExits: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "dirty_exited_jobs",
+				Help:      "Number of Resque jobs subject to a DirtyExit",
+			},
+			[]string{"queue_name"},
+		),
+		sigkilledWorkers: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "sigkilled_workers",
+				Help:      "Number of failed Resque jobs that were SIGKILLed",
+			},
+			[]string{"queue_name"},
+		),
 	}
 
 	return e, nil
@@ -86,6 +132,7 @@ func (e *exporter) Describe(ch chan<- *prometheus.Desc) {
 	e.totalWorkers.Describe(ch)
 	e.activeWorkers.Describe(ch)
 	e.idleWorkers.Describe(ch)
+	e.sigkilledWorkers.Describe(ch)
 }
 
 func (e *exporter) Collect(ch chan<- prometheus.Metric) {
@@ -127,6 +174,39 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 		return err
 	}
 	e.failedQueue.Set(float64(failed))
+
+	failures, err := redis.LRange(fmt.Sprintf("%s:failed", resqueNamespace), 0, failed).Result()
+	if err != nil {
+		return err
+	}
+
+	dirtyExits := make(map[string]int)
+	sigKills := make(map[string]int)
+
+	for _, j := range failures {
+		job := &failure{}
+		json.Unmarshal([]byte(j), &job)
+		if err != nil {
+			return err
+		}
+		if job.Exception == "Resque::DirtyExit" {
+			dirtyExits[job.Queue]++
+			match, err := regexp.MatchString(".*SIGKILL.*", job.Error)
+			if err != nil {
+				return err
+			}
+			if match {
+				sigKills[job.Queue]++
+			}
+		}
+	}
+
+	for queue, count := range dirtyExits {
+		e.dirtyExits.WithLabelValues(queue).Set(float64(count))
+	}
+	for queue, count := range sigKills {
+		e.sigkilledWorkers.WithLabelValues(queue).Set(float64(count))
+	}
 
 	queues, err := redis.SMembers(fmt.Sprintf("%s:queues", resqueNamespace)).Result()
 	if err != nil {
@@ -192,4 +272,6 @@ func (e *exporter) notifyToCollect(ch chan<- prometheus.Metric) {
 	e.totalWorkers.Collect(ch)
 	e.activeWorkers.Collect(ch)
 	e.idleWorkers.Collect(ch)
+	e.dirtyExits.Collect(ch)
+	e.sigkilledWorkers.Collect(ch)
 }
