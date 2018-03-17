@@ -25,6 +25,7 @@ type exporter struct {
 	failuresByQueueName *prometheus.GaugeVec
 	failuresByException *prometheus.GaugeVec
 	failuresByError     *prometheus.GaugeVec
+	failuresByWorker    *prometheus.GaugeVec
 	totalWorkers        prometheus.Gauge
 	activeWorkers       prometheus.Gauge
 	idleWorkers         prometheus.Gauge
@@ -38,25 +39,14 @@ type Payload struct {
 	Args  []interface{} `json:"args"`
 }
 
-type process struct {
-	Hostname string
-	Pid      int
-	ID       string
-	Queues   []string
-}
-
-type worker struct {
-	process
-}
-
 type failure struct {
-	FailedAt  time.Time `json:"failed_at"`
-	Payload   Payload   `json:"payload"`
-	Exception string    `json:"exception"`
-	Error     string    `json:"error"`
-	Backtrace []string  `json:"backtrace"`
-	Worker    *worker   `json:"worker"`
-	Queue     string    `json:"queue"`
+	// FailedAt  time.Time `json:"failed_at"`
+	Payload   Payload  `json:"payload"`
+	Exception string   `json:"exception"`
+	Error     string   `json:"error"`
+	Backtrace []string `json:"backtrace"`
+	Worker    string   `json:"worker"`
+	Queue     string   `json:"queue"`
 }
 
 func newExporter(config *Config) (*exporter, error) {
@@ -93,6 +83,14 @@ func newExporter(config *Config) (*exporter, error) {
 				Help:      "Failures by error",
 			},
 			[]string{"error"},
+		),
+		failuresByWorker: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "failures_by_worker",
+				Help:      "Failures by worker",
+			},
+			[]string{"worker"},
 		),
 		processed: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -156,6 +154,7 @@ func (e *exporter) Describe(ch chan<- *prometheus.Desc) {
 	e.failuresByQueueName.Describe(ch)
 	e.failuresByException.Describe(ch)
 	e.failuresByError.Describe(ch)
+	e.failuresByWorker.Describe(ch)
 	e.processed.Describe(ch)
 	e.failedQueue.Describe(ch)
 	e.failedTotal.Describe(ch)
@@ -213,6 +212,7 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 	failuresByQueueName := make(map[string]int)
 	failuresByException := make(map[string]int)
 	failuresByError := make(map[string]int)
+	failuresByWorker := make(map[string]int)
 	dirtyExits := make(map[string]int)
 	sigKills := make(map[string]int)
 
@@ -222,9 +222,34 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 		if err != nil {
 			return err
 		}
+		if job.Queue == "" {
+			fmt.Println("==================")
+			fmt.Println("WTF? Got an empty queue")
+			fmt.Println(job)
+			fmt.Println(j)
+			fmt.Println("=== Dumping Struct ===")
+			// fmt.Printf("FailedAt = %s\n", job.FailedAt)
+			fmt.Printf("Payload = %s\n", job.Payload)
+			/*
+				if job.Payload != nil {
+					fmt.Printf("=> Class = %s", job.Payload.Class)
+					fmt.Printf("=> Args = %s", job.Payload.Args)
+				}
+			*/
+			fmt.Printf("Exception = %s\n", job.Exception)
+			fmt.Printf("Error = %s\n", job.Error)
+			fmt.Printf("Backtrace = %s\n", job.Backtrace)
+			fmt.Printf("Worker = %s\n", job.Worker)
+			fmt.Printf("Queue = %s\n", job.Queue)
+			fmt.Println("=== END STRUCT ===")
+			fmt.Println("==================")
+		}
+
 		failuresByQueueName[job.Queue]++
 		failuresByException[job.Exception]++
 		failuresByError[job.Error]++
+		// TODO break this up a bit
+		failuresByWorker[job.Worker]++
 
 		if job.Exception == "Resque::DirtyExit" {
 			dirtyExits[job.Queue]++
@@ -244,8 +269,11 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 	for exception, count := range failuresByException {
 		e.failuresByException.WithLabelValues(exception).Set(float64(count))
 	}
-	for error, count := range failuresByError {
-		e.failuresByError.WithLabelValues(error).Set(float64(count))
+	for err, count := range failuresByError {
+		e.failuresByError.WithLabelValues(err).Set(float64(count))
+	}
+	for worker, count := range failuresByWorker {
+		e.failuresByWorker.WithLabelValues(worker).Set(float64(count))
 	}
 
 	for queue, count := range dirtyExits {
@@ -316,6 +344,7 @@ func (e *exporter) notifyToCollect(ch chan<- prometheus.Metric) {
 	e.failuresByQueueName.Collect(ch)
 	e.failuresByException.Collect(ch)
 	e.failuresByError.Collect(ch)
+	e.failuresByWorker.Collect(ch)
 	e.processed.Collect(ch)
 	e.failedQueue.Collect(ch)
 	e.failedTotal.Collect(ch)
