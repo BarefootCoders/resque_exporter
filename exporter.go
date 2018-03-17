@@ -15,19 +15,22 @@ import (
 const namespace = "resque"
 
 type exporter struct {
-	config           *Config
-	mut              sync.Mutex
-	scrapeFailures   prometheus.Counter
-	processed        prometheus.Gauge
-	failedQueue      prometheus.Gauge
-	failedTotal      prometheus.Gauge
-	queueStatus      *prometheus.GaugeVec
-	totalWorkers     prometheus.Gauge
-	activeWorkers    prometheus.Gauge
-	idleWorkers      prometheus.Gauge
-	dirtyExits       *prometheus.GaugeVec
-	sigkilledWorkers *prometheus.GaugeVec
-	timer            *time.Timer
+	config              *Config
+	mut                 sync.Mutex
+	scrapeFailures      prometheus.Counter
+	processed           prometheus.Gauge
+	failedQueue         prometheus.Gauge
+	failedTotal         prometheus.Gauge
+	queueStatus         *prometheus.GaugeVec
+	failuresByQueueName *prometheus.GaugeVec
+	failuresByException *prometheus.GaugeVec
+	failuresByError     *prometheus.GaugeVec
+	totalWorkers        prometheus.Gauge
+	activeWorkers       prometheus.Gauge
+	idleWorkers         prometheus.Gauge
+	dirtyExits          *prometheus.GaugeVec
+	sigkilledWorkers    *prometheus.GaugeVec
+	timer               *time.Timer
 }
 
 type Payload struct {
@@ -66,6 +69,30 @@ func newExporter(config *Config) (*exporter, error) {
 				Help:      "Number of remained jobs in queue",
 			},
 			[]string{"queue_name"},
+		),
+		failuresByQueueName: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "failures_by_queue_name",
+				Help:      "Failures by queue name",
+			},
+			[]string{"queue_name"},
+		),
+		failuresByException: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "failures_by_exception",
+				Help:      "Failures by exception",
+			},
+			[]string{"exception"},
+		),
+		failuresByError: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "failures_by_error",
+				Help:      "Failures by error",
+			},
+			[]string{"error"},
 		),
 		processed: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -126,6 +153,9 @@ func newExporter(config *Config) (*exporter, error) {
 func (e *exporter) Describe(ch chan<- *prometheus.Desc) {
 	e.scrapeFailures.Describe(ch)
 	e.queueStatus.Describe(ch)
+	e.failuresByQueueName.Describe(ch)
+	e.failuresByException.Describe(ch)
+	e.failuresByError.Describe(ch)
 	e.processed.Describe(ch)
 	e.failedQueue.Describe(ch)
 	e.failedTotal.Describe(ch)
@@ -180,6 +210,9 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 		return err
 	}
 
+	failuresByQueueName := make(map[string]int)
+	failuresByException := make(map[string]int)
+	failuresByError := make(map[string]int)
 	dirtyExits := make(map[string]int)
 	sigKills := make(map[string]int)
 
@@ -189,6 +222,10 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 		if err != nil {
 			return err
 		}
+		failuresByQueueName[job.Queue]++
+		failuresByException[job.Exception]++
+		failuresByError[job.Error]++
+
 		if job.Exception == "Resque::DirtyExit" {
 			dirtyExits[job.Queue]++
 			match, err := regexp.MatchString(".*SIGKILL.*", job.Error)
@@ -199,6 +236,16 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 				sigKills[job.Queue]++
 			}
 		}
+	}
+
+	for queue, count := range failuresByQueueName {
+		e.failuresByQueueName.WithLabelValues(queue).Set(float64(count))
+	}
+	for exception, count := range failuresByException {
+		e.failuresByException.WithLabelValues(exception).Set(float64(count))
+	}
+	for error, count := range failuresByError {
+		e.failuresByError.WithLabelValues(error).Set(float64(count))
 	}
 
 	for queue, count := range dirtyExits {
@@ -266,6 +313,9 @@ func (e *exporter) incrementFailures(ch chan<- prometheus.Metric) {
 
 func (e *exporter) notifyToCollect(ch chan<- prometheus.Metric) {
 	e.queueStatus.Collect(ch)
+	e.failuresByQueueName.Collect(ch)
+	e.failuresByException.Collect(ch)
+	e.failuresByError.Collect(ch)
 	e.processed.Collect(ch)
 	e.failedQueue.Collect(ch)
 	e.failedTotal.Collect(ch)
