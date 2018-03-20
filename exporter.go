@@ -58,7 +58,7 @@ func newExporter(config *Config) (*exporter, error) {
 				Name:      "jobs_in_queue",
 				Help:      "Number of remained jobs in queue",
 			},
-			[]string{"queue_name"},
+			[]string{"queue_name", "worker_name"},
 		),
 		failuresByQueueName: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -391,13 +391,10 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 		if err != nil {
 			return err
 		}
-		/*
-			workersForQueue := queueToWorker[q]
-			for _, worker := range workersForQueue {
-				e.queueStatus.WithLabelValues(q, worker).Set(float64(n))
-			}
-		*/
-		e.queueStatus.WithLabelValues(q).Set(float64(n))
+		workersForQueue := queueToWorker[q]
+		for _, worker := range workersForQueue {
+			e.queueStatus.WithLabelValues(q, worker).Set(float64(n))
+		}
 	}
 
 	processed, err := redis.Get(fmt.Sprintf("%s:stat:processed", resqueNamespace)).Result()
