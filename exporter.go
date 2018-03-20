@@ -58,7 +58,7 @@ func newExporter(config *Config) (*exporter, error) {
 				Name:      "jobs_in_queue",
 				Help:      "Number of remained jobs in queue",
 			},
-			[]string{"queue_name", "worker_name", "deployment"},
+			[]string{"namespace", "queue_name", "worker_name", "deployment"},
 		),
 		failuresByQueueName: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -393,7 +393,7 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 		}
 		workersForQueue := queueToWorker[q]
 		for _, worker := range workersForQueue {
-			e.queueStatus.WithLabelValues(q, worker, worker).Set(float64(n))
+			e.queueStatus.WithLabelValues("default", q, worker, worker).Set(float64(n))
 		}
 	}
 
