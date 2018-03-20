@@ -58,7 +58,7 @@ func newExporter(config *Config) (*exporter, error) {
 				Name:      "jobs_in_queue",
 				Help:      "Number of remained jobs in queue",
 			},
-			[]string{"queue_name"},
+			[]string{"queue_name", "worker_name", "deployment"},
 		),
 		failuresByQueueName: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -146,6 +146,104 @@ func newExporter(config *Config) (*exporter, error) {
 	}
 
 	return e, nil
+}
+
+var allWorkers = []string{
+	"api-resqueworker",
+	"api-resqueworker-mailchimp-updater",
+	"api-resqueworker-rebuild-object-cache",
+	"api-resqueworker-resquebus-incoming",
+	"api-resqueworker-reverse",
+	"archive-resqueworker-all",
+	"archive-resqueworker-external",
+	"archive-resqueworker-high",
+	"archive-resqueworker-instabot-sourcing",
+	"archive-resqueworker-log",
+	"archive-resqueworker-medium",
+}
+
+var queueToWorker = map[string][]string{
+	"resquebus_incoming":                   []string{"api-resqueworker", "api-resqueworker-reverse", "resquebus_incoming"},
+	"handle_merged_accounts_in_feeds":      []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"update_account_briefs":                []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"index_accounts":                       []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_delectabase_merges":            []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_updated_wine_profile":          []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_verified_identifier":           []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_updated_producer_role":         []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_deleted_producer_role":         []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_deleted_capture":               []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_context_invalidation":          []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_new_transcription":             []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"verify_identifiers":                   []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"facebook_capture":                     []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_impossible_capture":            []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"handle_untranscription":               []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"invalidate_followers_feed_signatures": []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"publish_activity":                     []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"send_push_notifications":              []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"resque_cleanup":                       []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"build_global_recommendations":         []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"build_recommendations":                []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"new_followers_digest":                 []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"set_badge_numbers":                    []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"cache_capture_lists":                  []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"rebuild_object_cache":                 []string{"api-resqueworker", "api-resqueworker-reverse", "api-resqueworker-rebuild-object-cache"},
+	"validate_object_caches":               []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"track_by_sk":                          []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"send_analytics_events":                []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"notify_keen":                          []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"hourly_analytics":                     []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"daily_analytics":                      []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"minutely_analytics":                   []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"notify_mix_panel":                     []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"vintank_publish":                      []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"account_life_cycle":                   []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"mandrill_emailer":                     []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"send_sms":                             []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"archive_subscriber":                   []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"activity_subscriber":                  []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"facebook_subscriber":                  []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"vintank_subscriber":                   []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"context_list_subscriber":              []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"delectasearch_subscriber":             []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"gamification":                         []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"gamification_backfill":                []string{"api-resqueworker", "api-resqueworker-reverse"},
+	"mailchimp_updater":                    []string{"api-resqueworker-mailchimp-updater"},
+	"receive_crowdflower_vintage_tag":      []string{"archive-resqueworker-all", "archive-resqueworker-high"},
+	"receive_crowdflower_base_wine_match":  []string{"archive-resqueworker-all", "archive-resqueworker-high"},
+	"receive_crowdflower_metadata":         []string{"archive-resqueworker-all", "archive-resqueworker-high"},
+	"manage_capture_queue":                 []string{"archive-resqueworker-all", "archive-resqueworker-high"},
+	"manage_image_queue":                   []string{"archive-resqueworker-all", "archive-resqueworker-high"},
+	"manage_sourcing":                      []string{"archive-resqueworker-all", "archive-resqueworker-high", "archive-resqueworker-medium"},
+	"log_capture_event":                    []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"handle_automatic_results":             []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"sort_new_capture":                     []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"attempt_instant_match":                []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"handle_archive_transcription":         []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"log_archivist_action":                 []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"process_archivist_actions":            []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"capture_log_status_event":             []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"hourly_transcription_stats":           []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"untranscribe_image_search":            []string{"archive-resqueworker-all", "archive-resqueworker-low"},
+	"merge_image_queries":                  []string{"archive-resqueworker-all", "archive-resqueworker-low"},
+	"receive_wine_dot_com_capture":         []string{"archive-resqueworker-all"},
+	"create_resolutions":                   []string{"archive-resqueworker-all", "archive-resqueworker-high"},
+	"assign_default_photo":                 []string{"archive-resqueworker-all", "archive-resqueworker-low"},
+	"delectabase_subscriber":               []string{"archive-resqueworker-all", "archive-resqueworker-medium"},
+	"vinous":                               []string{"archive-resqueworker-all", "archive-instabot-sourcing"},
+	"downgrade_expired_user":               []string{"archive-resqueworker-all"},
+	"sourcing":                             []string{"archive-instabot-sourcing"},
+	"post_instagram_comments":              []string{"archive-instabot-sourcing"},
+	"receive_instagram_scrape_complete":    []string{"archive-instabot-sourcing"},
+	"receive_instagram_user":               []string{"archive-instabot-sourcing"},
+	"receive_instagram_capture":            []string{"archive-instabot-sourcing"},
+	"instabot":                             []string{"archive-instabot-sourcing"},
+	"analyze_instagram_captures":           []string{"archive-instabot-sourcing"},
+	"external_capture":                     []string{"archive-resquebot-medium"},
+	"repopulate_photos":                    []string{"archive-resqueworker-low"},
+	"delectabrain":                         []string{"archive-resqueworker-low"},
+	// TODO more workers
 }
 
 func (e *exporter) Describe(ch chan<- *prometheus.Desc) {
@@ -293,7 +391,10 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 		if err != nil {
 			return err
 		}
-		e.queueStatus.WithLabelValues(q).Set(float64(n))
+		workersForQueue := queueToWorker[q]
+		for _, worker := range workersForQueue {
+			e.queueStatus.WithLabelValues(q, worker, worker).Set(float64(n))
+		}
 	}
 
 	processed, err := redis.Get(fmt.Sprintf("%s:stat:processed", resqueNamespace)).Result()
