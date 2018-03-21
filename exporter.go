@@ -160,6 +160,9 @@ var allWorkers = []string{
 	"archive-resqueworker-instabot",
 	"archive-resqueworker-log",
 	"archive-resqueworker-medium",
+	"delectaroutes-worker",
+	"delectory-resqueworker",
+	"delectabase-resqueworker-all",
 }
 
 var queueToWorker = map[string][]string{
@@ -243,7 +246,11 @@ var queueToWorker = map[string][]string{
 	"external_capture":                     []string{"archive-resqueworker-medium", "archive-resqueworker-external"},
 	"repopulate_photos":                    []string{"archive-resqueworker-low"},
 	"delectabrain":                         []string{"archive-resqueworker-low"},
-	// TODO more workers
+	"update_delectaroute_slugs":            []string{"delectaroutes-worker"},
+	"delectory_default":                    []string{"delectory-resqueworker"},
+	"delectabase_resquebus_subscribers":    []string{"delectabase-resqueworker-all"},
+	"rebuild_caches":                       []string{"delectabase-resqueworker-all"},
+	"index_vintageless_charlie_tangos":     []string{"delectabase-resqueworker-all"},
 }
 
 func (e *exporter) Describe(ch chan<- *prometheus.Desc) {
