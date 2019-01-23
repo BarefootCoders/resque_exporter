@@ -24,4 +24,5 @@ ENV VERSION "0.0.3"
 
 WORKDIR /app
 COPY --from=build-env /go/src/github.com/BarefootCoders/resque_exporter/bin/resque_exporter_linux_amd64_$VERSION /app/
+ADD ./config.sample.yml ./
 ENTRYPOINT ./resque_exporter_linux_amd64_$VERSION

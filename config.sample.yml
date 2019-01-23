@@ -1,0 +1,3 @@
+queue_to_workers:
+    resquebus_incoming:
+    - api-resqueworker

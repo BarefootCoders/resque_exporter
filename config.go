@@ -38,7 +38,7 @@ func getQueueConfiguration(filePath string) (config *QueueConfiguration) {
 		panic(err)
 	}
 
-	err = yaml.Unmarshal(yamlFile, config)
+	err = yaml.Unmarshal(yamlFile, &config)
 	if err != nil {
 		panic(err)
 	}

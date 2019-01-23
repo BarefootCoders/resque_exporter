@@ -13,3 +13,4 @@ services:
       REDIS_PORT: "6379"
       REDIS_NAMESPACE: "resque"
       GUARD_INTERVAL_MILLIS: "0"
+      QUEUE_CONFIGURATION_FILE_PATH: "./config.sample.yml"
