@@ -1,6 +1,8 @@
-package resqueExporter
+package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"os"
 )
@@ -24,7 +26,7 @@ func isLeader() bool {
 	if err != nil {
 		panic(err.Error())
 	}
-	var leaderElection LeaderElectionResponse
+	var leaderElection leaderElectionResponse
 	err = json.Unmarshal(contents, &leaderElection)
 	if err != nil {
 		panic(err.Error())
