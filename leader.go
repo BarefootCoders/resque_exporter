@@ -1,4 +1,4 @@
-package main
+package resqueExporter
 
 import (
 	"encoding/json"

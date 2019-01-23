@@ -148,23 +148,6 @@ func newExporter(config *Config) (*exporter, error) {
 	return e, nil
 }
 
-var allWorkers = []string{
-	"api-resqueworker",
-	"api-resqueworker-mailchimp-updater",
-	"api-resqueworker-rebuild-object-cache",
-	"api-resqueworker-resquebus-incoming",
-	"api-resqueworker-reverse",
-	"archive-resqueworker-all",
-	"archive-resqueworker-external",
-	"archive-resqueworker-high",
-	"archive-resqueworker-instabot",
-	"archive-resqueworker-log",
-	"archive-resqueworker-medium",
-	"delectaroutes-worker",
-	"delectory-resqueworker",
-	"delectabase-resqueworker-all",
-}
-
 var queueToWorker = map[string][]string{
 	"resquebus_incoming":                   []string{"api-resqueworker", "api-resqueworker-reverse", "api-resqueworker-resquebus-incoming"},
 	"handle_merged_accounts_in_feeds":      []string{"api-resqueworker", "api-resqueworker-reverse"},
@@ -398,7 +381,7 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 		if err != nil {
 			return err
 		}
-		workersForQueue := queueToWorker[q]
+		workersForQueue := e.config.QueueConfiguration.QueueToWorkers[q]
 		for _, worker := range workersForQueue {
 			e.queueStatus.WithLabelValues("default", q, worker, worker).Set(float64(n))
 		}

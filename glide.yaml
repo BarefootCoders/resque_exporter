@@ -1,4 +1,4 @@
-package: github.com/moznion/resque_exporter
+package: github.com/BarefootCoders/resque_exporter
 import:
   - package: github.com/Bowery/prompt
     version: 14cd60563a0ae24b2902e89a5d7b2b88ad3cd884 # <= fix version for 32bit OS
