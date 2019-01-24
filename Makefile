@@ -56,3 +56,7 @@ installdeps: glide
 clean:
 	rm -rf $(RELEASE_DIR)/resque_exporter_*
 
+publish:
+	docker build -t quay.io/barefootcoders/resque_exporter . && \
+		docker tag quay.io/barefootcoders/resque_exporter:latest quay.io/barefootcoders/resque_exporter:$(VERSION) && \
+		docker push quay.io/barefootcoders/resque_exporter:$(VERSION)
