@@ -24,8 +24,6 @@ type exporter struct {
 	queueStatus         *prometheus.GaugeVec
 	failuresByQueueName *prometheus.GaugeVec
 	failuresByException *prometheus.GaugeVec
-	failuresByError     *prometheus.GaugeVec
-	failuresByWorker    *prometheus.GaugeVec
 	totalWorkers        prometheus.Gauge
 	activeWorkers       prometheus.Gauge
 	idleWorkers         prometheus.Gauge
@@ -75,22 +73,6 @@ func newExporter(config *Config) (*exporter, error) {
 				Help:      "Failures by exception",
 			},
 			[]string{"exception"},
-		),
-		failuresByError: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "failures_by_error",
-				Help:      "Failures by error",
-			},
-			[]string{"error"},
-		),
-		failuresByWorker: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "failures_by_worker",
-				Help:      "Failures by worker",
-			},
-			[]string{"worker"},
 		),
 		processed: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -153,8 +135,6 @@ func (e *exporter) Describe(ch chan<- *prometheus.Desc) {
 	e.queueStatus.Describe(ch)
 	e.failuresByQueueName.Describe(ch)
 	e.failuresByException.Describe(ch)
-	e.failuresByError.Describe(ch)
-	e.failuresByWorker.Describe(ch)
 	e.processed.Describe(ch)
 	e.failedQueue.Describe(ch)
 	e.failedTotal.Describe(ch)
@@ -211,8 +191,6 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 
 	failuresByQueueName := make(map[string]int)
 	failuresByException := make(map[string]int)
-	failuresByError := make(map[string]int)
-	failuresByWorker := make(map[string]int)
 	dirtyExits := make(map[string]int)
 	sigKills := make(map[string]int)
 
@@ -247,9 +225,6 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 
 		failuresByQueueName[job.Queue]++
 		failuresByException[job.Exception]++
-		failuresByError[job.Error]++
-		// TODO break this up a bit
-		failuresByWorker[job.Worker]++
 
 		if job.Exception == "Resque::DirtyExit" {
 			dirtyExits[job.Queue]++
@@ -268,12 +243,6 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 	}
 	for exception, count := range failuresByException {
 		e.failuresByException.WithLabelValues(exception).Set(float64(count))
-	}
-	for err, count := range failuresByError {
-		e.failuresByError.WithLabelValues(err).Set(float64(count))
-	}
-	for worker, count := range failuresByWorker {
-		e.failuresByWorker.WithLabelValues(worker).Set(float64(count))
 	}
 
 	for queue, count := range dirtyExits {
@@ -346,8 +315,6 @@ func (e *exporter) notifyToCollect(ch chan<- prometheus.Metric) {
 	e.queueStatus.Collect(ch)
 	e.failuresByQueueName.Collect(ch)
 	e.failuresByException.Collect(ch)
-	e.failuresByError.Collect(ch)
-	e.failuresByWorker.Collect(ch)
 	e.processed.Collect(ch)
 	e.failedQueue.Collect(ch)
 	e.failedTotal.Collect(ch)
