@@ -22,7 +22,7 @@ type RedisConfig struct {
 }
 
 type QueueConfiguration struct {
-	QueueToWorkers map[string][]string `yaml:queue_to_workers`
+	QueueToWorkers map[string][]string `yaml:"queue_to_workers"`
 }
 
 func getEnv(key, fallback string) string {
