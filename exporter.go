@@ -184,72 +184,74 @@ func (e *exporter) collect(ch chan<- prometheus.Metric) error {
 	}
 	e.failedQueue.Set(float64(failed))
 
-	failures, err := redis.LRange(fmt.Sprintf("%s:failed", resqueNamespace), 0, failed).Result()
-	if err != nil {
-		return err
-	}
-
-	failuresByQueueName := make(map[string]int)
-	failuresByException := make(map[string]int)
-	dirtyExits := make(map[string]int)
-	sigKills := make(map[string]int)
-
-	for _, j := range failures {
-		job := &failure{}
-		json.Unmarshal([]byte(j), &job)
+	if e.config.ExportFailureDetails {
+		failures, err := redis.LRange(fmt.Sprintf("%s:failed", resqueNamespace), 0, failed).Result()
 		if err != nil {
 			return err
 		}
-		if job.Queue == "" {
-			fmt.Println("==================")
-			fmt.Println("WTF? Got an empty queue")
-			fmt.Println(job)
-			fmt.Println(j)
-			fmt.Println("=== Dumping Struct ===")
-			// fmt.Printf("FailedAt = %s\n", job.FailedAt)
-			fmt.Printf("Payload = %s\n", job.Payload)
-			/*
-				if job.Payload != nil {
-					fmt.Printf("=> Class = %s", job.Payload.Class)
-					fmt.Printf("=> Args = %s", job.Payload.Args)
-				}
-			*/
-			fmt.Printf("Exception = %s\n", job.Exception)
-			fmt.Printf("Error = %s\n", job.Error)
-			fmt.Printf("Backtrace = %s\n", job.Backtrace)
-			fmt.Printf("Worker = %s\n", job.Worker)
-			fmt.Printf("Queue = %s\n", job.Queue)
-			fmt.Println("=== END STRUCT ===")
-			fmt.Println("==================")
-		}
 
-		failuresByQueueName[job.Queue]++
-		failuresByException[job.Exception]++
+		failuresByQueueName := make(map[string]int)
+		failuresByException := make(map[string]int)
+		dirtyExits := make(map[string]int)
+		sigKills := make(map[string]int)
 
-		if job.Exception == "Resque::DirtyExit" {
-			dirtyExits[job.Queue]++
-			match, err := regexp.MatchString(".*SIGKILL.*", job.Error)
+		for _, j := range failures {
+			job := &failure{}
+			json.Unmarshal([]byte(j), &job)
 			if err != nil {
 				return err
 			}
-			if match {
-				sigKills[job.Queue]++
+			if job.Queue == "" {
+				fmt.Println("==================")
+				fmt.Println("WTF? Got an empty queue")
+				fmt.Println(job)
+				fmt.Println(j)
+				fmt.Println("=== Dumping Struct ===")
+				// fmt.Printf("FailedAt = %s\n", job.FailedAt)
+				fmt.Printf("Payload = %s\n", job.Payload)
+				/*
+					if job.Payload != nil {
+						fmt.Printf("=> Class = %s", job.Payload.Class)
+						fmt.Printf("=> Args = %s", job.Payload.Args)
+					}
+				*/
+				fmt.Printf("Exception = %s\n", job.Exception)
+				fmt.Printf("Error = %s\n", job.Error)
+				fmt.Printf("Backtrace = %s\n", job.Backtrace)
+				fmt.Printf("Worker = %s\n", job.Worker)
+				fmt.Printf("Queue = %s\n", job.Queue)
+				fmt.Println("=== END STRUCT ===")
+				fmt.Println("==================")
+			}
+
+			failuresByQueueName[job.Queue]++
+			failuresByException[job.Exception]++
+
+			if job.Exception == "Resque::DirtyExit" {
+				dirtyExits[job.Queue]++
+				match, err := regexp.MatchString(".*SIGKILL.*", job.Error)
+				if err != nil {
+					return err
+				}
+				if match {
+					sigKills[job.Queue]++
+				}
 			}
 		}
-	}
 
-	for queue, count := range failuresByQueueName {
-		e.failuresByQueueName.WithLabelValues(queue).Set(float64(count))
-	}
-	for exception, count := range failuresByException {
-		e.failuresByException.WithLabelValues(exception).Set(float64(count))
-	}
+		for queue, count := range failuresByQueueName {
+			e.failuresByQueueName.WithLabelValues(queue).Set(float64(count))
+		}
+		for exception, count := range failuresByException {
+			e.failuresByException.WithLabelValues(exception).Set(float64(count))
+		}
 
-	for queue, count := range dirtyExits {
-		e.dirtyExits.WithLabelValues(queue).Set(float64(count))
-	}
-	for queue, count := range sigKills {
-		e.sigkilledWorkers.WithLabelValues(queue).Set(float64(count))
+		for queue, count := range dirtyExits {
+			e.dirtyExits.WithLabelValues(queue).Set(float64(count))
+		}
+		for queue, count := range sigKills {
+			e.sigkilledWorkers.WithLabelValues(queue).Set(float64(count))
+		}
 	}
 
 	queues, err := redis.SMembers(fmt.Sprintf("%s:queues", resqueNamespace)).Result()

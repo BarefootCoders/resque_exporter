@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	GuardIntervalMillis int64
-	ResqueNamespace     string
-	Redis               *RedisConfig
-	QueueConfiguration  *QueueConfiguration
+	GuardIntervalMillis  int64
+	ResqueNamespace      string
+	Redis                *RedisConfig
+	QueueConfiguration   *QueueConfiguration
+	ExportFailureDetails bool
 }
 
 type RedisConfig struct {
@@ -56,6 +57,7 @@ func loadConfig() (*Config, error) {
 	redisDB := int64(0)
 	queueConfigurationFilePath := getEnv("QUEUE_CONFIGURATION_FILE_PATH", "./config.yml")
 	queueConfiguration := getQueueConfiguration(queueConfigurationFilePath)
+	exportFailureDetails := (getEnv("EXPORT_FAILURE_DETAILS", "false") == "true")
 
 	config := &Config{
 		GuardIntervalMillis: guardIntervalMillis,
@@ -66,7 +68,8 @@ func loadConfig() (*Config, error) {
 			redisPassword,
 			redisDB,
 		},
-		QueueConfiguration: queueConfiguration,
+		QueueConfiguration:   queueConfiguration,
+		ExportFailureDetails: exportFailureDetails,
 	}
 	return config, nil
 }
